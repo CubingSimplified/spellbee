@@ -17,8 +17,7 @@
             background: #fff;
             padding: 20px;
             border-radius: 10px;
-            box-shadow: 0px 0px 10px rgba
-(0,0,0,0.1);
+            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
         }
         textarea {
             width: 100%;
@@ -28,8 +27,8 @@
             margin-bottom: 10px;
         }
         input[type="text"], button {
-            padding: 10px;
-            font-size: 16px;
+            padding: 20px;
+            font-size: 25px;
             margin: 10px 0;
             width: 100%;
         }
@@ -49,20 +48,48 @@
             font-weight: bold;
             margin-top: 10px;
         }
+        #correctIncorrectCount {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        #correctIncorrectCount .correctCount {
+            color: green;
+        }
+        #correctIncorrectCount .incorrectCount {
+            color: red;
+        }
+        .file-input {
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Spelling Bee Practice</h1>
         <div id="inputSection">
-            <p>Paste your words below (one per line) and click "Go" to start:</p>
-            <textarea id="wordList" placeholder="Paste your words here..."></textarea>
-            <button onclick="startPractice()">Go</button>
+            <p>Upload your study lists (each should be a .txt file with one word per line):</p>
+            <div class="file-input">
+                <input type="file" id="fileInput1" accept=".txt">
+                <label for="fileInput1">Upload Study List 1</label>
+            </div>
+            <div class="file-input">
+                <input type="file" id="fileInput2" accept=".txt">
+                <label for="fileInput2">Upload Study List 2</label>
+            </div>
+            <div class="file-input">
+                <input type="file" id="fileInput3" accept=".txt">
+                <label for="fileInput3">Upload Study List 3</label>
+            </div>
+            <button onclick="loadWords()">Load Selected Lists</button>
         </div>
 
         <div id="practiceSection" style="display:none;">
             <p id="instructions">Listen to the word, then type the spelling below:</p>
             <div id="progress"></div> <!-- Progress counter -->
+            <div id="correctIncorrectCount">
+                <span class="correctCount"></span>, 
+                <span class="incorrectCount"></span>
+            </div> <!-- Correct and incorrect counter -->
             <input type="text" id="answer" placeholder="Type your answer here" autocomplete="off">
             <button onclick="checkAnswer()">Submit</button>
             <button onclick="hearAgain()">Hear Again</button>
@@ -75,26 +102,52 @@
         let words = [];
         let currentIndex = 0;
         let missedWords = new Set(); // Use a Set to avoid duplicates
+        let correctCount = 0; // Counter for correct answers
+        let incorrectCount = 0; // Counter for incorrect answers
 
-        function startPractice() {
-            // Get words from the textarea and split them into an array
-            words = document.getElementById("wordList").value.trim().split("\n").map(word => word.trim());
+        function loadWords() {
+            words = []; // Reset words array
+            const fileInputs = [
+                document.getElementById("fileInput1"),
+                document.getElementById("fileInput2"),
+                document.getElementById("fileInput3")
+            ];
 
-            if (words.length === 0 || words[0] === "") {
-                alert("Please enter at least one word.");
-                return;
-            }
+            const fileReadPromises = [];
 
-            // Hide the input section and show the practice section
-            document.getElementById("inputSection").style.display = "none";
-            document.getElementById("practiceSection").style.display = "block";
+            fileInputs.forEach((fileInput, index) => {
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    const reader = new FileReader();
+                    fileReadPromises.push(new Promise((resolve) => {
+                        reader.onload = function(event) {
+                            const fileWords = event.target.result.split("\n").map(word => word.trim()).filter(word => word);
+                            words = words.concat(fileWords); // Add words from this file
+                            resolve();
+                        };
+                        reader.readAsText(file);
+                    }));
+                }
+            });
 
-            // Start the practice by speaking the first word
-            speakWord(words[currentIndex]);
-            updateProgress();
+            Promise.all(fileReadPromises).then(() => {
+                if (words.length === 0) {
+                    alert("Please upload at least one study list.");
+                    return;
+                }
 
-            // Focus the input box for immediate typing
-            document.getElementById("answer").focus();
+                // Hide the input section and show the practice section
+                document.getElementById("inputSection").style.display = "none";
+                document.getElementById("practiceSection").style.display = "block";
+
+                // Start the practice by speaking the first word
+                speakWord(words[currentIndex]);
+                updateProgress();
+                updateCorrectIncorrectCount();
+
+                // Focus the input box for immediate typing
+                document.getElementById("answer").focus();
+            });
         }
 
         function speakWord(word) {
@@ -125,10 +178,12 @@
                 result.textContent = "Correct!";
                 result.classList.remove("wrong");
                 result.classList.add("correct");
+                correctCount++; // Increment correct counter
             } else {
                 result.textContent = "Wrong! Correct spelling: " + correctWord;
                 result.classList.remove("correct");
                 result.classList.add("wrong");
+                incorrectCount++; // Increment incorrect counter
 
                 // Add the word to the missedWords Set (duplicates will be ignored)
                 missedWords.add(correctWord);
@@ -142,6 +197,7 @@
                     document.getElementById("answer").value = "";
                     speakWord(words[currentIndex]);
                     updateProgress();
+                    updateCorrectIncorrectCount();
                 }, 1000);
             } else {
                 displayMissedWords();
@@ -156,6 +212,11 @@
 
         function updateProgress() {
             document.getElementById("progress").textContent = `Word ${currentIndex + 1} of ${words.length}`;
+        }
+
+        function updateCorrectIncorrectCount() {
+            document.querySelector(".correctCount").textContent = `Correct: ${correctCount}`;
+            document.querySelector(".incorrectCount").textContent = `Incorrect: ${incorrectCount}`;
         }
 
         function displayMissedWords() {
@@ -174,12 +235,15 @@
             link.click();
         }
 
-        // Handle "Enter" key press to submit answer
+        // Handle "Enter" key press to submit answer and "\" key to hear again
         document.addEventListener("DOMContentLoaded", () => {
             const answerInput = document.getElementById("answer");
             answerInput.addEventListener("keydown", function(event) {
                 if (event.key === "Enter") {
                     checkAnswer();
+                } else if (event.key === '\\') {
+                    event.preventDefault(); // Prevent the backslash from appearing in the input
+                    hearAgain();
                 }
             });
         });
