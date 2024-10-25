@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spelling Bee Practice</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: white;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba
+(0,0,0,0.1);
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 10px;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        input[type="text"], button {
+            padding: 10px;
+            font-size: 16px;
+            margin: 10px 0;
+            width: 100%;
+        }
+        #result {
+            font-weight: bold;
+            color: green;
+        }
+        #result.wrong {
+            color: red;
+        }
+        #missedWords {
+            margin-top: 20px;
+            color: red;
+            font-weight: bold;
+        }
+        #progress {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Spelling Bee Practice</h1>
+        <div id="inputSection">
+            <p>Paste your words below (one per line) and click "Go" to start:</p>
+            <textarea id="wordList" placeholder="Paste your words here..."></textarea>
+            <button onclick="startPractice()">Go</button>
+        </div>
+
+        <div id="practiceSection" style="display:none;">
+            <p id="instructions">Listen to the word, then type the spelling below:</p>
+            <div id="progress"></div> <!-- Progress counter -->
+            <input type="text" id="answer" placeholder="Type your answer here" autocomplete="off">
+            <button onclick="checkAnswer()">Submit</button>
+            <button onclick="hearAgain()">Hear Again</button>
+            <p id="result"></p>
+            <div id="missedWords"></div>
+        </div>
+    </div>
+
+    <script>
+        let words = [];
+        let currentIndex = 0;
+        let missedWords = new Set(); // Use a Set to avoid duplicates
+
+        function startPractice() {
+            // Get words from the textarea and split them into an array
+            words = document.getElementById("wordList").value.trim().split("\n").map(word => word.trim());
+
+            if (words.length === 0 || words[0] === "") {
+                alert("Please enter at least one word.");
+                return;
+            }
+
+            // Hide the input section and show the practice section
+            document.getElementById("inputSection").style.display = "none";
+            document.getElementById("practiceSection").style.display = "block";
+
+            // Start the practice by speaking the first word
+            speakWord(words[currentIndex]);
+            updateProgress();
+
+            // Focus the input box for immediate typing
+            document.getElementById("answer").focus();
+        }
+
+        function speakWord(word) {
+            const synth = window.speechSynthesis;
+            const utterance = new SpeechSynthesisUtterance(word);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.8; // Adjusted speech rate for clarity
+            utterance.pitch = 1.2; // Slightly higher pitch for better clarity
+            utterance.volume = 1; // Full volume
+            synth.speak(utterance);
+        }
+
+        function hearAgain() {
+            speakWord(words[currentIndex]);
+        }
+
+        function normalizeWord(word) {
+            return word.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        }
+
+        function checkAnswer() {
+            const answer = document.getElementById("answer").value.trim();
+            const correctWord = words[currentIndex];
+            const result = document.getElementById("result");
+
+            // Normalize both words for comparison (ignores accents and case)
+            if (normalizeWord(answer) === normalizeWord(correctWord)) {
+                result.textContent = "Correct!";
+                result.classList.remove("wrong");
+                result.classList.add("correct");
+            } else {
+                result.textContent = "Wrong! Correct spelling: " + correctWord;
+                result.classList.remove("correct");
+                result.classList.add("wrong");
+
+                // Add the word to the missedWords Set (duplicates will be ignored)
+                missedWords.add(correctWord);
+            }
+
+            currentIndex++;
+
+            if (currentIndex < words.length) {
+                setTimeout(() => {
+                    result.textContent = "";
+                    document.getElementById("answer").value = "";
+                    speakWord(words[currentIndex]);
+                    updateProgress();
+                }, 1000);
+            } else {
+                displayMissedWords();
+                saveMissedWords(); // Save missed words to a file
+                result.textContent = "You've completed all the words!";
+                document.getElementById("answer").disabled = true;
+            }
+
+            // Focus the input box again
+            document.getElementById("answer").focus();
+        }
+
+        function updateProgress() {
+            document.getElementById("progress").textContent = `Word ${currentIndex + 1} of ${words.length}`;
+        }
+
+        function displayMissedWords() {
+            if (missedWords.size > 0) {
+                const missedWordsDiv = document.getElementById("missedWords");
+                missedWordsDiv.innerHTML = `<p>You missed the following words:</p><ul>` + 
+                    Array.from(missedWords).map(word => `<li>${word}</li>`).join('') + `</ul>`;
+            }
+        }
+
+        function saveMissedWords() {
+            const blob = new Blob([Array.from(missedWords).join('\n')], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = window.URL.createObjectURL(blob);
+            link.download = 'missed_words.txt';
+            link.click();
+        }
+
+        // Handle "Enter" key press to submit answer
+        document.addEventListener("DOMContentLoaded", () => {
+            const answerInput = document.getElementById("answer");
+            answerInput.addEventListener("keydown", function(event) {
+                if (event.key === "Enter") {
+                    checkAnswer();
+                }
+            });
+        });
+
+        // Automatically speak the first word when the practice starts
+        window.onload = function() {
+            if (words.length > 0) {
+                speakWord(words[currentIndex]);
+            }
+        }
+    </script>
+</body>
+</html>
